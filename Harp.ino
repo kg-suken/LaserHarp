@@ -1,5 +1,10 @@
 #include <MIDIUSB.h>
 
+// ====== 設定しきい値 ======
+const int sensorThreshold = 50; // フォトトランジスタの発動しきい値
+const int octaveShiftThresholds[] = { 100, 300, 650, 740 }; // -2, -1, 0, 1, 2 の切り替え境界値
+
+// ====== ハードウェア構成 ======
 const int analogPins[] = { A0, A1, A2, A3, A4, A5 };
 const byte midiNotes[] = { 60, 62, 64, 65, 67, 69 };  // ド, レ, ミ, ファ, ソ, ラ
 bool noteState[6] = { false, false, false, false, false, false };
@@ -60,7 +65,6 @@ void handleButton() {
 void handleSensors() {
   currentOctaveShift = getOctaveShift();
 
-  // オクターブが変更された場合、以前のノートをすべてNoteOff
   if (currentOctaveShift != previousOctaveShift) {
     allNotesOff(currentChannel, previousOctaveShift);
     previousOctaveShift = currentOctaveShift;
@@ -73,21 +77,22 @@ void handleSensors() {
     byte shiftedNote = midiNotes[i] + currentOctaveShift * 12;
     shiftedNote = constrain(shiftedNote, 0, 127);
 
-    if (val < 50 && !noteState[i]) {
+    if (val < sensorThreshold && !noteState[i]) {
       sendNoteOn(currentChannel + 1, shiftedNote, 127);
       noteState[i] = true;
-    } else if (val >= 50 && noteState[i]) {
+    } else if (val >= sensorThreshold && noteState[i]) {
       sendNoteOff(currentChannel + 1, shiftedNote, 127);
       noteState[i] = false;
     }
   }
 }
+
 int getOctaveShift() {
   int val = analogRead(A11);
-  if (val > 740) return 2;
-  else if (val > 650) return 1;
-  else if (val > 300) return 0;
-  else if (val > 100) return -1;
+  if (val > octaveShiftThresholds[3]) return 2;
+  else if (val > octaveShiftThresholds[2]) return 1;
+  else if (val > octaveShiftThresholds[1]) return 0;
+  else if (val > octaveShiftThresholds[0]) return -1;
   else return -2;
 }
 
@@ -101,7 +106,6 @@ void allNotesOff(int channel, int octaveShift) {
     }
   }
 }
-
 
 void printSensorValues() {
   Serial.print("Sensors: ");
